@@ -7,14 +7,15 @@ if CLIENT then
 -- Variables
 local crosshair = false
 local crosshairAlpha = 0
-local lerpTime = 0.001
+local lerpTime = 0.01
 local damage = 0
 local damageRed = 0
 local damageWhite = 0
 local damageType = nil
 local damageModifier = 0
 local motionBlur = 50
-local blur = 0
+local motionTimer = 0
+local blur = 0.01
 local releaseTime = 0.25
 local colorLocked = false
 local locked = false;
@@ -45,6 +46,13 @@ net.Receive("txInflexDamageBarPlayerTakeDamage", function()
     coroutineCrosshairThink()
 end)
 
+net.Receive("txInflexDamageBarEntityTakeDamageBlur", function()
+    local enemyHealth = net.ReadInt(16)
+
+    motionTimer = 2
+    motionBlur = 50
+end)
+
 -- Functions
 function coroutineDamageRelease()
     coDamageRelease = coroutine.create(function()
@@ -72,7 +80,7 @@ function coroutineCrosshairThink()
                 crosshair = false -- Disable crosshair
                 locked = false
             else
-                crosshairAlpha = Lerp(FrameTime() / 1, crosshairAlpha, 0)
+                crosshairAlpha = Lerp(FrameTime() * 2, crosshairAlpha, 0)
             end
         end
     end)
@@ -102,19 +110,23 @@ function HUDPaint()
         end
     end
 
-    local damageRadiusA = math.max(math.min(damage + (8 * damageModifier), 80), 20)
-    local damageRadiusB = math.max(math.min(damage + (12 * damageModifier), 160), 30)
-    local damageRadiusC = math.max(math.min(damage + (16 * damageModifier), 240), 40)
+    local damageRadiusA = math.max(math.min(damage + (8 * damageModifier), 150), 30)
+    local damageRadiusB = math.max(math.min(damage + (10 * damageModifier), 100), 40)
+    local damageRadiusC = math.max(math.min(damage + (12 * damageModifier), 50), 50)
 
     if crosshair then
         if damageType == "player" then
-            surface.DrawCircle(center.x, center.y, damageRadiusA, damageRed, 0, 0, crosshairAlpha)
-            surface.DrawCircle(center.x, center.y, damageRadiusB, damageRed, 0, 0, crosshairAlpha)
-            surface.DrawCircle(center.x, center.y, damageRadiusC, damageRed, 0, 0, crosshairAlpha)
+            for i=1,2 do
+                surface.DrawCircle(center.x, center.y - 1, damageRadiusA+i, damageRed, 0, 0, crosshairAlpha)
+                surface.DrawCircle(center.x, center.y - 1, damageRadiusB+i, damageRed, 0, 0, crosshairAlpha)
+                surface.DrawCircle(center.x, center.y - 1, damageRadiusC+i, damageRed, 0, 0, crosshairAlpha)
+            end
         elseif damageType == "enemy" then
-            surface.DrawCircle(center.x, center.y, damageRadiusA, damageWhite, damageWhite, damageWhite, crosshairAlpha)
-            surface.DrawCircle(center.x, center.y, damageRadiusB, damageWhite, damageWhite, damageWhite, crosshairAlpha)
-            surface.DrawCircle(center.x, center.y, damageRadiusC, damageWhite, damageWhite, damageWhite, crosshairAlpha)
+            for i=1,2 do
+                surface.DrawCircle(center.x, center.y - 1, damageRadiusA+i, damageWhite, damageWhite, damageWhite, crosshairAlpha)
+                surface.DrawCircle(center.x, center.y - 1, damageRadiusB+i, damageWhite, damageWhite, damageWhite, crosshairAlpha)
+                surface.DrawCircle(center.x, center.y - 1, damageRadiusC+i, damageWhite, damageWhite, damageWhite, crosshairAlpha)
+            end
         end
     end
 end
@@ -133,13 +145,15 @@ function Think()
     end
 end
 
-function RenderScreenspaceEffects() 
-    if damage > 0.0 then
-        motionBlur = Lerp(0.03, motionBlur, 0)
-        blur = Lerp(0.1, blur + lerpTime, 0.25)
+function RenderScreenspaceEffects()
+    if motionTimer > 0 then
+        motionTimer = motionTimer - FrameTime() * 2
+        motionBlur = Lerp(0.1, motionBlur, 0)
 
-        DrawMotionBlur(blur, motionBlur, 0)
+        DrawMotionBlur(0.1, motionBlur, 0)
     end
+
+    MsgN(motionTimer)
 end
 
 -- Hooks
@@ -153,7 +167,9 @@ if SERVER then
 
 -- Networking
 util.AddNetworkString("txInflexDamageBarEntityTakeDamage")
+util.AddNetworkString("txInflexDamageBarEntityTakeDamageBlur")
 util.AddNetworkString("txInflexDamageBarPlayerTakeDamage")
+
 
 -- Functions
 function EntityTakeDamage(ent, dmg)
@@ -172,7 +188,29 @@ function EntityTakeDamage(ent, dmg)
     end
 end
 
+function Think()
+end
+
+function OnNPCKilled(npc, att, inf)
+    InflexSendEntityKillToPlayer(npc, att)
+end
+
+function PropBreak(att, prop)
+    InflexSendEntityKillToPlayer(prop, att)
+end
+
+function InflexSendEntityKillToPlayer(ent, ply)
+    if not ent:IsPlayer() then
+        net.Start("txInflexDamageBarEntityTakeDamageBlur")
+        net.WriteInt(math.abs(ent:Health()), 16)
+        net.Send(ply)
+    end
+end
+
 -- Hooks
 hook.Add("EntityTakeDamage", "InflexDamageBarTakeDamage", EntityTakeDamage)
+hook.Add("OnNPCKilled", "InflexDamageBarNPCKilled", OnNPCKilled)
+hook.Add("PropBreak", "InflexDamageBarPropBreak", PropBreak)
+hook.Add("Think", "InflexDamageBarThinkServer", Think)
 
 end
