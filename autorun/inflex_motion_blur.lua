@@ -25,8 +25,6 @@ function RenderScreenspaceEffects()
 
         DrawMotionBlur(0.1, motionBlur, 0)
     end
-
-    MsgN(motionTimer)
 end
 
 -- Hooks

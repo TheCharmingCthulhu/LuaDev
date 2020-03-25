@@ -1,0 +1,42 @@
+-- local pos = self:GetPos()
+-- local effect = EffectData()
+-- effect:SetOrigin(pos)
+-- util.Effect("Explosion", effect)
+-- self:Explode()
+
+-- MsgN("Distance:" .. )
+
+-- if (math.sqrt(attacker:GetPos():DistToSqr(self:GetPos())) <= self.AttackDistance) then
+--     self:Attack(attacker)
+-- end
+
+
+function ENT:Explode()
+    local pos = self:GetPos()
+    local effect = EffectData()
+    effect:SetOrigin(pos)
+    util.Effect("Explosion", effect)
+end
+
+function ENT:Attack(att)
+    if att:IsValid() then        
+        local dmg = DamageInfo()
+        dmg:SetDamage(math.Rand(-10, 10) + 20)
+        dmg:SetDamageType(DMG_BLAST)
+        dmg:SetDamagePosition(att:GetPos())
+        dmg:SetInflictor(self)
+        dmg:SetAttacker(self)       
+        -- Attack
+        att:TakeDamageInfo(dmg)
+    end
+end
+
+-- Trace
+-- local tr = util.TraceLine({
+--     start = pos,
+--     endpos = pos + (Vector(0, 0, -1) * 10000),
+--     filter = self
+-- })
+
+-- local w1 = tr.HitPos + tr.HitNormal
+-- local w2 = tr.HitPos - tr.HitNormal
